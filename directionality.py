@@ -1,14 +1,19 @@
-# Está classe deve herdar da classe PipelineElement
 import re
 import random
+
+
+# This class will inherit from PipelineElement class
+
 # itertools — Functions creating iterators for efficient looping
 # The module standardizes a core set of fast, memory efficient tools that are useful by themselves or in combination. 
 from itertools import product,combinations
-# from elements.element import PipelineElement
-class directionality_augmentation:
-    """[Directionality augmentation of a phrase for [agent -> verb -> receiver] and [agent -> pronoun -> verb]]
+
+
+class Directionality_Augmentation:
+    """[Directionality augmentation of a phrase for the following pattern 
+    [agent -> verb -> receiver] and [agent -> pronoun -> verb]]
     """    
-    # É necessário a nome do step para por no json de exec
+    
     # The name of this pipeline element.
     name = 'directionality'
     
@@ -30,72 +35,89 @@ class directionality_augmentation:
     }
     
     _regex_latin ='[A-ZÁÉÍÓÚÀÂÊÔÃÕÜÇa-záéíóúàâêôãõüç]+'
-    #filtro para GI pattern
+    
+    #GI pattern filter 
     _gi_verb_pattern = '[1-3][SP]_('+_regex_latin+')_[1-3][SP]'
     _gi_pattern = '[1-3][SP]_'+_regex_latin+'_[1-3][SP]'
 
-    # agentes
+    # pronome reto
     _agent_pattern = r'\b(EU|TU|ELE|ELA|NÓS|VÓS|ELES|ELAS)\b'
 
-    # verbos
+    # verbs
     _verb_pattern = r'\b({0}R)\b'.format(_regex_latin)
+    
     # pronome obliquo atono
     _pronoun_pattern = r'\b(ME|TE|LHE|VOS|NOS|LHES)\b'
 
+    # both patterns -> [pronome reto, verbo, pronome reto] 
+    # e [pronome reto, pronome obliquo atono, verbo]
     _pattern_agent_verb = "%s %s %s" %(_agent_pattern, _verb_pattern, _agent_pattern)
     _pattern_pronoun_verb = "%s %s %s" %(_agent_pattern, _pronoun_pattern, _verb_pattern)
     
     def __init__(self, *args, **kwargs):
         pass
-    
-    
-    ### Métodos necessários para o step de augmentation
+     
+    #! Métodos necessários para o step de augmentation
     def find_pattern(self,phrase_gr):
-        """[Find pattern in phrase, return 2 list with patterns found]
+        """[Find pattern in phrase, return 2 lists with each pattern]
         
         Arguments:
-            phrase_gr {[type]} -- [Phrase side GR]
+            phrase_gr {string} -- [gr type phrase]
         
         Returns:
-            [type] -- [2 Years with patterns found or empty list]
-        """        
-        # resultado do regex para o padrão [agente -> verbo -> receptor]
+            [type] -- [2 lists with patterns found or 2 empty lists if 
+                       no pattern is encountered]
+        """ 
+               
+        # regex result for [pronome reto, verbo, pronome reto]
         search_pattern_agent_verb = re.findall(self._pattern_agent_verb, phrase_gr)
-        # resultado do regex para o padrão [agente -> pronome -> verbo]
+        # regex result for [pronome reto, pronome obliquo atono, verbo]
         search_pattern_pronoun_verb = re.findall(self._pattern_pronoun_verb, phrase_gr)
 
         return search_pattern_agent_verb, search_pattern_pronoun_verb
     
     
     def new_patterns(self, pattern_gr, verb_gi, **kwargs):
-        '''Cria uma novas formas das frases a partir de um pattern [agente -> verbo -> receptor] ou [agente -> pronome -> verbo]'''
+        '''creates new phrases from the following patterns 
+       [pronome reto, verbo, pronome reto] ou [pronome reto, pronome obliquo atono, verbo]'''
         patterns_gr = []
         patterns_gi = []
-        # norm é int 1 ou 0, para as frases dos tipos 1 e 2
-        t_type = kwargs.get('norm')
         
-        if t_type:#frases tipo 1
+        # norm is an int 1 -> [pronome reto, verbo, pronome reto] 
+        # or 2 -> [pronome reto, pronome obliquo atono, verbo]
+        t_type = kwargs.get('norm')
+               
+        # [pronome reto, verbo, pronome reto] -> 1
+        if t_type == 1:
+            
             verb = pattern_gr[1]
-            # combinação com todos as possibilidades do dicionário
+            
+            # Combinations involving all possible dictionary keys of agensts_dict
             combinations = product(self._agents_dict.keys(), self._agents_dict.keys(), repeat=1)
 
+
             for item in combinations:
-                # criação de frases do tipo [EU, TU ...]
-                # os for's são necessários nos casos de [ELE, ELA, ELES ELAS]
+                # creating phrases of type: [EU, TU ...]
+                # The other loops are necessary in these following cases: [ELE, ELA, ELES ELAS]
                 for index_1, item_1  in enumerate(self._agents_dict[item[0]]):
+                    
                     for index_2, item_2 in enumerate(self._agents_dict[item[1]]):
+                        
                         gr = f'{item_1} {verb} {item_2}'
                         gi = f'{item[0]}_{verb_gi}_{item[1]}'
                         patterns_gr.append(gr)
                         patterns_gi.append(gi)
-        else:#frases tipo 2
+        
+        # [pronome reto, pronome obliquo atono, verbo] -> 2
+        elif t_type == 2:
+            
             verb = pattern_gr[2]
-            # combinação com todos as possibilidades do dicionário pronouns_dict
+            # Combinations involving all possible dictionary keys of pronouns_dict
             combinations = product(self._agents_dict.keys(), self._pronouns_dict.keys(), repeat=1)
             
             for item in combinations:
-                # criação de frases do tipo [EU, TU ...]
-                # os for's são necessários nos casos de [ELE, ELA, ELES ELAS]
+                # creating phrases of type: [EU, TU ...]
+                # The other loops are necessary in these following cases: [ELE, ELA, ELES ELAS]
                 for index_1, item_1  in enumerate(self._agents_dict[item[0]]):
                     for index_2, item_2 in enumerate(self._pronouns_dict[item[1]]):
 
@@ -108,8 +130,9 @@ class directionality_augmentation:
     
     
     def for_string(*args,**kwargs):
-        '''Transformando a padrão em [agente -> verbo -> receptor] ou [agente -> pronome -> verbo]
-        em string para pesquisar a parte de trás e da frente do padrão'''
+        '''Transforms a pattern ([pronome reto -> verbo -> pronome reto] 
+            or [pronome reto -> pronome obliquo -> verbo])
+            in a string to search for what comes before and after '''
         
         if kwargs.get('agent_verb'):
             search_pattern = kwargs.get('agent_verb')
@@ -118,6 +141,9 @@ class directionality_augmentation:
             search_pattern = kwargs.get('pronoun_verb')
             
         strings = []
+        
+        # Transforms the pattern in a string to check
+        # for what comes before and after it in the phrase
         for pattern in search_pattern: 
             line = ''
             for index, part in enumerate(pattern):
@@ -129,101 +155,141 @@ class directionality_augmentation:
         return strings
     
     def assembly_phrase(self,phrase,*args,**kwargs):
-        '''Monta a frase dado [agente -> verbo -> receptor] ou [agente -> pronome -> verbo]'''
+        '''Creates new phrases with => before_part + pattern + after_part 
+        for each combination in new_patterns method [pronome reto -> verbo -> pronome reto] 
+        or [pronome reto -> pronome obliquo -> verb]'''
  
         new_phrase_gr = phrase[0]
         new_phrase_gi = phrase[1]
         combination_gr = kwargs.get('combination_gr')
         combination_gi = kwargs.get('combination_gi')
         
-        if kwargs.get('agent_verb'):
-            search_pattern = kwargs.get('agent_verb')    
-            pstr = for_string(agent_verb = search_pattern)# Transforma search_pattern em string
+        
+        if kwargs.get('agent_verb'): 
+            search_pattern = kwargs.get('agent_verb')  
+            # Transforms search_pattern in a string  
+            search_pattern_to_string = self.for_string(agent_verb=search_pattern)
         
         else:    
             search_pattern = kwargs.get('pronoun_verb')
-            pstr = for_string(pronoun_verb = search_pattern)# Transforma search_pattern em string
+            # Transforms search_pattern in a string
+            search_pattern_to_string = self.for_string(pronoun_verb=search_pattern)
         
         try:
-            gi_verbs = re.findall(self._gi_pattern,new_phrase_gi)# Retira verbo do lado GI
+            # Gets all patterns in GI
+            gi_verbs = re.findall(self._gi_pattern, new_phrase_gi)
             
-            for i, part_string in enumerate(pstr):
-                new_phrase_gr = re.sub(part_string,combination_gr[i],new_phrase_gr)
-                new_phrase_gi = re.sub(gi_verbs[i],combination_gi[i],new_phrase_gi)
+            # Creates new phrases with new directionalities elements for both gr and gi
+            for i, part_string in enumerate(search_pattern_to_string):
+                
+                new_phrase_gr = re.sub(part_string,combination_gr[i], new_phrase_gr)
+                new_phrase_gi = re.sub(gi_verbs[i], combination_gi[i], new_phrase_gi)
         
         except Exception as e:
-            print(f'Erro assembly_phrase regex.\n',e)
+            print(f'Error assembly_phrase regex.\n',e)
         
         return (new_phrase_gr,new_phrase_gi)
     
-    def augmentation(self, enter_phrase):
-        '''Já é possível criar as frases GR para os dois pad        rões descritos como:
-         [agente -> verbo -> receptor] e [agente -> pronome -> verbo]'''
+    def augmentation(self, gr_gi_tuple, limit=50):
+        """[Does the augmentation for both gr, gi]
+        
+        Arguments:
+            gr_gi_tuple {(string, string)} -- [tuple containing (gr_phrase, gi_phrase)]
+        
+        Keyword Arguments:
+            limit {int} -- [Limits the amount of new phrases generated for
+                            each (gr, gi)] (default: {50})
+        
+        Returns:
+            [list] -- [New phrases generated]
+        """        
         new_patterns_gr = []
         new_patterns_gi =[]
-        new_p = []
-        
-        phrase_gr = enter_phrase[0]
+        new_phrases = []
+        phrase_gr = gr_gi_tuple[0]
 
-        # [agente -> verbo -> receptor] and [agente -> pronome -> verbo]
-        search_pattern_agent_verb, search_pattern_pronoun_verb = find_pattern(phrase_gr)
+        # gets both [pronome reto -> verbo -> pronome reto]  
+        # and [pronome reto -> pronome obliquo -> verbo]
+        search_pattern_agent_verb, search_pattern_pronoun_verb = self.find_pattern(phrase_gr)
         
-        gi_verbs = re.findall(gi_verb_pattern,enter_phrase[1])
         
-        # Shuffle nos pattern encontradas para para retirada de apenas 2 de forma aleatória,
-        # porque para cada padrão é gerada 64 frases, logo é 64 ^ NumeroDePatterns
+        # Since a phrase may have multiple patterns in it, a limit is set to get only 2 patterns 
+        # to create new phrases, due to the fact for each pattern 64 new phrases are generated
+        # so the combination is 64 ^ NumberOfPatterns
         random.shuffle(search_pattern_agent_verb)
-        random.shuffle(search_pattern_agent_verb)
+        random.shuffle(search_pattern_pronoun_verb)
         
+        # after the shuffle the limit of 2 patterns is set
         search_pattern_agent_verb = search_pattern_agent_verb[:2]
         search_pattern_pronoun_verb = search_pattern_pronoun_verb[:2]
         
-        '''[agente -> verbo -> receptor]''' 
+        # find all verbs in GI 
+        gi_verbs = re.findall(self._gi_verb_pattern, gr_gi_tuple[1])
+        
+        #* [pronome reto -> verbo -> pronome reto]
         if search_pattern_agent_verb:
+            
+            # Creates new phrases for each pattern
             for i, patterns_in_phrase in enumerate(search_pattern_agent_verb):
-                gr,gi = new_patterns(patterns_in_phrase, 
-                                     gi_verbs[i],
-                                     norm = 1)
+                gr,gi = self.new_patterns(patterns_in_phrase, 
+                                          gi_verbs[i],
+                                          norm = 1)
                 
                 new_patterns_gr.append(gr)
                 new_patterns_gi.append(gi)          
                 
-        '''[agente -> pronome -> verbo]'''
+        # [pronome reto -> pronome obliquo -> verbo]
         if search_pattern_pronoun_verb:
+            
+            # Creates new phrases for each pattern
             for i, patterns_in_phrase in enumerate(search_pattern_pronoun_verb):
-                gr,gi = new_patterns(patterns_in_phrase,
+                gr,gi = self.new_patterns(patterns_in_phrase,
                                      gi_verbs[i],
-                                     norm = 0)
+                                     norm = 2)
                 
                 new_patterns_gr.append(gr)
                 new_patterns_gi.append(gi)
             
-        #combinação dos pattern das frases geradas
-        combination_patterns = product(*new_patterns_gr, repeat=1)
+        # Combinating patterns of the newly created phrases
+        combination_patterns_gr = product(*new_patterns_gr, repeat=1)
         combination_patterns_gi = product(*new_patterns_gi, repeat=1)
-        
-        for cont, item_gr in enumerate(combination_patterns):
-            item_gi = next(combination_patterns_gi)
-
-            if search_pattern_pronoun_verb:
-                new_p.append(assembly_phrase(enter_phrase,
-                                            agent_verb = search_pattern_pronoun_verb,
+        try: 
+            for item_gr in combination_patterns_gr:
+                
+                # New Patterns for GI 
+                item_gi = next(combination_patterns_gi)
+                
+                # Generates new phrases [befores_string + pattern + after_string] 
+                # if the following pattern is encountered 
+                # [pronome reto -> pronome obliquo -> verbo]
+                if search_pattern_pronoun_verb:
+                    new_phrases.append(self.assembly_phrase(gr_gi_tuple,
+                                                agent_verb = search_pattern_pronoun_verb,
+                                                combination_gr = item_gr,
+                                                combination_gi = item_gi))
+                
+                # Generates new phrases [befores_string + pattern + after_string] 
+                # if the following pattern is encountered 
+                # [pronome reto -> verbo -> pronome reto]
+                if search_pattern_agent_verb:
+                    new_phrases.append(self.assembly_phrase(gr_gi_tuple,
+                                            agent_verb = search_pattern_agent_verb,
                                             combination_gr = item_gr,
-                                            combination_gi = item_gi))
-            if search_pattern_agent_verb:
-                new_p.append(assembly_phrase(enter_phrase,
-                                        agent_verb = search_pattern_agent_verb,
-                                        combination_gr = item_gr,
-                                        combination_gi = item_gi)) 
-        # Shuffle para retornar 50 frases aleatórias
-        random.shuffle(new_p)
-        return new_p
+                                            combination_gi = item_gi)) 
+        except:
+            print('No pattern was found')
+            return None
+        
+        # Shuffle to return {limit ( default_val = 50 )} random phrases
+        random.shuffle(new_phrases)
+        return new_phrases[:limit]
     
     
-    def process(self,data):
+    def process(self,data,limit=50):
+        # Used to do the augmentation in phrases
         new_phrases = []
         for phrase in data:
-            new_phrases.append(augmentation(phrase))
+            new_phrases.extend(self.augmentation(phrase, limit=limit))
             
         return new_phrases    
     
